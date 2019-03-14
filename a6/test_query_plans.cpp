@@ -99,10 +99,6 @@ static void test_q1()
                    q1_predicate),
             {2});
 
-    print_iterator("q1", project(
-            select(table_scan(user),
-                   q1_predicate),
-            {2}));
     Iterator* c1 = table_scan(control1);
     CHECK(match(c1, q1));
     delete q1;
@@ -135,14 +131,21 @@ static void test_q2_table_scan()
     add(control2, {"2017/06/07"});
     add(control2, {"2017/08/05"});
     Iterator* c2 = table_scan(control2);
-    Iterator* q2 =
-        project(  
-            nested_loops_join(
-                nested_loops_join((select(table_scan(user), q2_predicate)), {0}, table_scan(routing), {0}), {2},
-                table_scan(message), {0}
-                ),
-            {1}); 
     
+    Iterator* q2 =
+        sort(
+            project(  
+                nested_loops_join(
+                    nested_loops_join(
+                        select(
+                            table_scan(user), 
+                            q2_predicate), 
+                        {0}, table_scan(routing), {0}), 
+                    {4},
+                    table_scan(message), {0}),
+                {5}),
+            {0}); 
+
     CHECK(match(c2, q2));
     delete q2;
     delete c2;
