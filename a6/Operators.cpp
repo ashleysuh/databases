@@ -14,10 +14,6 @@
 
 // TableIterator 
 
-//DEUBBING:::::
-#include<iostream>
-//:::::::::::::
-
 unsigned TableIterator::n_columns() 
 {
     return _table->columns().size();
@@ -72,30 +68,19 @@ Row* IndexScan::next()
 {
     Row* next = NULL;
 
-    // need to check if map is empty before returning rows
-    if( _input != _end ) {
-      Index::iterator it; // dummy iterator so we can change _input
-
-      for( it = _input; it != _end; it++ ){
-
-        int curr = stoi(it->first.at(0)); // current row value from index
-        int lo = stoi(_lo->at(0));        // low value to compare against
-        int hi = stoi(_hi->at(0));        // high value to compare against
-
-        if( curr >= lo && curr <= hi ) {
-          // set the row to return to what our iterator is currently pointing to
-          next = it->second; 
-          // set _input to the current iterator for the next next() call
-          _input = it;
-
-          // don't increment _input if it'll point past the last element in the map
-          if( (it++) != _end ){
-            _input++;
-          }
-          return next; // return here so we exit the for loop
+    if( !_index->empty() ){
+      while( _input != _end ){
+        if( _input->first.at(0) >= _lo->at(0) && _input->first.at(0) <= _hi->at(0) ){
+          next = _input->second;
+          _input++;
+          return next;
+        }
+        else{
+          _input++;
         }
       }
     }
+
     return next;
 }
 
@@ -234,7 +219,6 @@ Row* NestedLoopsJoin::join_rows_if_match(const Row* left, const Row* right)
   }
 
   for( unsigned i = 0; i < right->size(); i++ ){
-    // this if-statement
     if( i != _right_join_columns.selected(0) ){
       join_row->append(right->at(i));
     }
@@ -246,6 +230,7 @@ Row* NestedLoopsJoin::join_rows_if_match(const Row* left, const Row* right)
 Row* NestedLoopsJoin::next()
 {
 
+  Row* nested = NULL;
   Row* r_row = _right->next();
 
   while( _left_row != NULL && r_row != NULL && !match(_left_row, r_row) ){
@@ -263,10 +248,18 @@ Row* NestedLoopsJoin::next()
 
   }
 
-  return
-    _left_row != NULL && r_row != NULL
-    ? join_rows_if_match(_left_row, r_row)
-    : NULL;
+  if( _left_row != NULL && r_row != NULL ){
+    nested = join_rows_if_match(_left_row, r_row);
+    Row::reclaim(r_row);
+    //Row::reclaim(_left_row);
+  }
+  
+  return nested;
+
+  // return
+  //   _left_row != NULL && r_row != NULL
+  //   ? (join_rows_if_match(_left_row, r_row); Row::reclaim(r_row))
+  //   : NULL;
 }
 
 void NestedLoopsJoin::close()
@@ -318,6 +311,8 @@ void Sort::open()
 
     std::sort(_sorted.begin(), _sorted.end(), RowCompare(_sort_columns));
     _sorted_iterator = _sorted.begin();
+
+    Row::reclaim(row);
 }
 
 
@@ -346,6 +341,7 @@ Sort::Sort(Iterator* input, const initializer_list<unsigned>& sort_columns)
 Sort::~Sort()
 {
     delete _input;
+    delete *_sorted_iterator;
 }
 
 //----------------------------------------------------------------------
@@ -409,4 +405,5 @@ Unique::Unique(Iterator* input)
 Unique::~Unique()
 {
     delete _input;
+    Row::reclaim(_last_unique);
 }
